@@ -1,0 +1,281 @@
+
+<!DOCTYPE html>
+<html>
+<title>VPN TCP Proxy</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="w3.css">
+<link rel="stylesheet" href="raleway.css">
+<link rel="stylesheet" href="font-awesome.min.css">
+<style>
+html,body,h1,h2,h3,h4,h5 {font-family: "Raleway", sans-serif}
+.my-footer {
+   position: fixed;
+   left: 0;
+   bottom: 0;
+   width: 100%;
+   #background-color: red;
+   #color: white;
+   text-align: right;
+}
+</style>
+<!--	-->
+<body class="w3-light-grey">
+
+<!-- Top container -->
+<div class="w3-bar w3-top w3-black w3-large" style="z-index:4">
+  <button class="w3-bar-item w3-button w3-hide-large w3-hover-none w3-hover-text-light-grey" onclick="w3_open();"><i class="fa fa-bars"></i> &nbsp;Menu</button>
+  <span class="w3-bar-item w3-right">VPN TCP Proxy</span>
+</div>
+
+<!-- Sidebar/menu -->
+<nav class="w3-sidebar w3-collapse w3-white w3-animate-left" style="z-index:3;width:300px;" id="mySidebar"><br>
+  <div class="w3-container w3-row">
+    <div class="w3-col s4">
+      <img src="avatar2.png" class="w3-circle w3-margin-right" style="width:46px">
+    </div>
+    <div class="w3-col s8 w3-bar">
+      <span>Welcome, <strong>Kaa</strong></span><br>
+      <a href="#" class="w3-bar-item w3-button"><i class="fa fa-envelope"></i></a>
+      <a href="#" class="w3-bar-item w3-button"><i class="fa fa-user"></i></a>
+      <a href="#" class="w3-bar-item w3-button"><i class="fa fa-cog"></i></a>
+    </div>
+  </div>
+  <hr>
+  <div class="w3-container">
+    <h5>Menu</h5>
+  </div>
+  <div class="w3-bar-block">
+    <a href="#" class="w3-bar-item w3-button w3-padding-16 w3-hide-large w3-dark-grey w3-hover-black" onclick="w3_close()" title="close menu"><i class="fa fa-remove fa-fw"></i>&nbsp; Close Menu</a>
+    <a href="index.html" class="w3-bar-item w3-button w3-padding w3-blue"><i class="fa fa-users fa-fw"></i>&nbsp; Dashboard</a>
+    <a href="setting.html" class="w3-bar-item w3-button w3-padding"><i class="fa fa-eye fa-fw"></i>&nbsp; Settings</a>
+
+  </div>
+</nav>
+
+
+<!-- Overlay effect when opening sidebar on small screens -->
+<div class="w3-overlay w3-hide-large w3-animate-opacity" onclick="w3_close()" style="cursor:pointer" title="close side menu" id="myOverlay"></div>
+
+<!-- !PAGE CONTENT! -->
+<div class="w3-main" style="margin-left:300px;margin-top:43px;">
+
+  <!-- Header -->
+  <header class="w3-container" style="padding-top:22px">
+    <h5><b><i class="fa fa-dashboard"></i> My Dashboard</b></h5>
+  </header>
+
+
+  
+  <div class="w3-panel" style="padding-bottom:50px;">
+    <div class="w3-row-padding" style="margin:0 -16px">
+ 
+        <h5>Status</h5>
+        <table class="w3-table w3-striped w3-white" id="table_status">
+
+          <tr>
+            <td><i class="fa fa-bookmark w3-text-blue w3-large"></i></td>
+            <td>Loading</td>
+            <td><i>. . .</i></td>
+          </tr>
+
+        </table>
+
+    </div>
+  </div>
+  <hr>
+  
+
+  <!-- Footer -->
+  <footer class="w3-container w3-padding-16 w3-light-grey my-footer">
+    <p>Powered by Sun89 - <a href="http://www.natthapol89.com">natthapol89.com</a></p>
+  </footer>
+
+  <!-- End page content -->
+</div>
+
+<script>
+// Get the Sidebar
+var mySidebar = document.getElementById("mySidebar");
+
+// Get the DIV with overlay effect
+var overlayBg = document.getElementById("myOverlay");
+
+// Toggle between showing and hiding the sidebar, and add overlay effect
+function w3_open() {
+  if (mySidebar.style.display === 'block') {
+    mySidebar.style.display = 'none';
+    overlayBg.style.display = "none";
+  } else {
+    mySidebar.style.display = 'block';
+    overlayBg.style.display = "block";
+  }
+}
+
+// Close the sidebar with the close button
+function w3_close() {
+  mySidebar.style.display = "none";
+  overlayBg.style.display = "none";
+}
+
+/*
+<tr>
+            <td><i class="fa fa-bookmark w3-text-blue w3-large"></i></td>
+            <td>Check transactions.</td>
+            <td><i>28 mins</i></td>
+          </tr>
+*/
+function makeRow(table, name, data) {
+  // Create an empty <tr> element and add it to the 1st position of the table:
+  var row = table.insertRow(-1);
+
+  // Insert new cells (<td> elements) at the 1st and 2nd position of the "new" <tr> element:
+  var cell1 = row.insertCell(0);
+  var cell2 = row.insertCell(1);
+  var cell3 = row.insertCell(2);
+
+  // Add some text to the new cells:
+  cell1.innerHTML = '<i class="fa fa-bookmark w3-text-blue w3-large"></i>';
+  cell2.innerHTML = name;
+  cell3.innerHTML = '<i>' + data + '</i>';
+}
+
+function uptimeFull(uptime) {
+  //var wg = document.getElementById("wg_uptime");
+  uptime = parseInt(uptime);
+  
+  var uptime_day = 0;
+  var uptime_hour = 0;
+  var uptime_minute = 0;
+  var uptime_second = 0;
+  
+  uptime_day = parseInt((uptime/(60 * 60 * 24)));
+  uptime = uptime - parseInt((uptime_day * (60*60*24) ));
+  
+  uptime_hour = parseInt((uptime/(60 * 60)));
+  uptime = uptime - parseInt((uptime_hour * (60*60) ));
+  
+  uptime_minute = parseInt((uptime/(60)));
+  uptime = uptime - parseInt((uptime_minute * (60) ));
+  
+  uptime_second = uptime;
+  
+  console.log("Day: " + uptime_day + ", Hour: " + uptime_hour + ", Minute: " + uptime_minute + ", Second: " + uptime_second);
+  var uptime_str = uptime_day + "D " + uptime_hour + "H " + uptime_minute + "M " + uptime_second + "S";
+  //wg.innerHTML = uptime_str;
+  return uptime_str;
+}
+
+function updateStatusTable(dataList) {
+  // Find a <table> element with id="myTable":
+  var table = document.getElementById("table_status");
+  table.innerHTML = '';
+  
+  makeRow(table, 'Internet Connection', dataList.internet_connect=="1"?"OK":"Fail");
+  makeRow(table, 'VPN Connection', dataList.vpn_connect=="1"?"OK":"Fail");
+  makeRow(table, 'WIFI Mode', dataList.wifi_mode);
+  makeRow(table, 'WiFi MAC Address', dataList.wifi_mac);
+  makeRow(table, 'WIFI IP Address', dataList.wifi_ip);
+  makeRow(table, 'VPN Local IP', dataList.vpn_local_ip);
+  makeRow(table, 'VPN Remote IP', dataList.vpn_remote_ip);
+  makeRow(table, 'Firmware Date', dataList.fw_date);
+  makeRow(table, 'Firmware Time', dataList.fw_time);
+  makeRow(table, 'System Uptime (sec)', uptimeFull(dataList.uptime_sec) + " ( " + dataList.uptime_sec + " )");
+  makeRow(table, 'Reboot When Uptime', dataList.restart_timeout_sec);
+  makeRow(table, 'Free Heap', dataList.free_heap);
+  /*
+  makeRow(table, 'Relay Delay Timeout', dataList.rly_control_tm_out);
+  makeRow(table, 'Relay Status', dataList.state_rly24v=="0"?"OFF":"ON");
+  makeRow(table, 'Relay Auto Status', dataList.state_rly24v_auto=="0"?"OFF":"ON");
+  makeRow(table, 'Battery Voltage', dataList.vbat);
+  makeRow(table, 'Battery Voltage Empty', dataList.vbat_low);
+  makeRow(table, 'Battery Voltage Full', dataList.vbat_high);
+  
+  makeRow(table, 'Disk Total Bytes', dataList.fs_total_bytes);
+  makeRow(table, 'Disk Used Bytes', dataList.fs_used_bytes);
+  makeRow(table, 'Disk Block Size', dataList.fs_block_size);
+  makeRow(table, 'Disk Page Size', dataList.fs_page_size);
+  makeRow(table, 'Disk Max Open File', dataList.fs_max_open_files);
+  makeRow(table, 'Disk Max Path Length', dataList.fs_max_path_length);
+  
+  makeRow(table, 'Firmware Compile Date', dataList.compile_date);
+  */
+}
+
+function setPercentBatt(val ,val_low, val_high) {
+  var percent = document.getElementById("percent_batt");
+  var data = parseFloat(val);
+  var low = parseFloat(val_low);
+  var high = parseFloat(val_high);
+  
+  var ret = ((data - low) * 100) / (high - low);
+  ret = Math.ceil(ret);
+  if (ret < 0.0) ret = 0.0;
+  if (ret > 100.0) ret = 100.0;
+  percent.innerHTML =  ret + "%";
+  percent.style.width = ret + "%";
+}
+
+function setPercentDisk(val ,val_low, val_high) {
+  var percent = document.getElementById("percent_disk");
+  var data = parseFloat(val);
+  var low = parseFloat(val_low);
+  var high = parseFloat(val_high);
+  
+  var ret = ((data - low) * 100) / (high - low);
+  ret = Math.ceil(ret);
+  if (ret < 0.0) ret = 0.0;
+  if (ret > 100.0) ret = 100.0;
+  percent.innerHTML =  ret + "%";
+  percent.style.width = ret + "%";
+}
+
+function setWgUptime(uptime) {
+  var wg = document.getElementById("wg_uptime");
+  uptime = parseInt(uptime);
+  
+  var uptime_day = 0;
+  var uptime_hour = 0;
+  var uptime_minute = 0;
+  var uptime_second = 0;
+  
+  uptime_day = parseInt((uptime/(60 * 60 * 24)));
+  uptime = uptime - parseInt((uptime_day * (60*60*24) ));
+  
+  uptime_hour = parseInt((uptime/(60 * 60)));
+  uptime = uptime - parseInt((uptime_hour * (60*60) ));
+  
+  uptime_minute = parseInt((uptime/(60)));
+  uptime = uptime - parseInt((uptime_minute * (60) ));
+  
+  uptime_second = uptime;
+  
+  console.log("Day: " + uptime_day + ", Hour: " + uptime_hour + ", Minute: " + uptime_minute + ", Second: " + uptime_second);
+  var uptime_str = uptime_day + "D " + uptime_hour + "H " + uptime_minute + "M " + uptime_second + "S";
+  wg.innerHTML = uptime_str;
+}
+
+function updateStatus() {
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function(){
+    if (xhr.readyState === 4){
+        var resp = JSON.parse(xhr.responseText);
+        console.log(resp);
+        
+        updateStatusTable(resp);
+    }
+  };
+
+  var url = 'device_status';
+  url = '/' + url;
+  xhr.open('GET', url);
+  xhr.send();
+}
+
+
+
+setInterval(updateStatus, 5000);
+</script>
+
+</body>
+</html>
