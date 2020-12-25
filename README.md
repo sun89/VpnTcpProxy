@@ -19,3 +19,7 @@
  const char *pptp_user = "pptp-user";
  const char *pptp_password = "pptp-password";
  const char *dest_server = "192.168.1.1";
+
+## Web File
+- Store in ESP8266 flash by SPIFFS
+- Directory "data" is Web File
