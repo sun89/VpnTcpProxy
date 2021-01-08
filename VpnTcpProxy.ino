@@ -183,6 +183,7 @@ void handleDeviceConfig() {
       Serial.println("Save Device Config to flash successfully");
       if (saveConfigFlag & SAVECFG_REBOOT) {
         Serial.println("Need to reboot to apply change -> Reboot ESP");
+        delay(2000);
         ESP.reset();
       }
     }
@@ -207,6 +208,13 @@ void loop(){
   }
 
   if (Serial.available() > 0) {
+    int ch = Serial.read();
+    if (ch == 'r') {
+      Serial.println("Serial request to Reset Configuration and Reboot");
+      SPIFFS.remove("/deviceconfig.bin");
+      delay(1000);
+      ESP.reset();
+    }
     Serial.print("Change Debug Message to ");
     if (debug == 1) debug = 10;
     else debug = 1;

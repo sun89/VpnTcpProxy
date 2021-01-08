@@ -5,7 +5,7 @@
 #include "SyncClient.h"
 #include "md5.h"
 #include "DebugMsg.h"
-
+#include "MSCHAP.h"
 
 void printIP(ip_addr_t ip) {
   printf("%d.", ip.addr &0xff);
@@ -124,13 +124,19 @@ char PPTPC_username[50];
 char PPTPC_password[50];
 
 uint16_t PPTPC_authenProtocol;
+#define CHAP_MD5      0x05
+#define CHAP_MSCHAP1  0x80
+#define CHAP_MSCHAP2  0x81
+uint8_t PPTPC_authenChapMode;
 uint16_t PPTPC_callId;
 uint16_t PPTPC_peerCallId;
-uint8_t PPTPC_chapMd5Identifier;
-uint8_t PPTPC_chapMd5Challenge[256];
-int PPTPC_chapMd5ChallengeSize;
-bool PPTPC_chapMd5AuthenStatus;
+uint8_t PPTPC_chapIdentifier;
+uint8_t PPTPC_chapChallenge[256];
+int PPTPC_chapChallengeSize;
+bool PPTPC_chapAuthenStatus;
+bool PPTPC_chapAuthenResponse;
 md5_context_t PPTPC_md5Context;
+MSCHAP_CTX mschap_ctx;
 
 static bool lcpComplete;
 static bool papComplete;
@@ -140,7 +146,8 @@ static int mplsIdentifier;
 ip_addr_t localIP;
 ip_addr_t remoteIP;
 ip_addr_t netmask;
-    
+
+uint32_t waitTimeoutMs = 5000;
     
 void PPTPC_buildStartControlConnectionRequest(struct StartControlConnection *req);
 void PPTPC_buildOutGoingCallRequest(struct OutGoingCallRequest *req);
@@ -167,8 +174,10 @@ void PPTPC_init(const char *server, int port, const char *user, const char *pass
   papLoginState = false;
   cbcpComplete = false;
   mplsIdentifier = -1;
-  PPTPC_chapMd5ChallengeSize = 0;
-  PPTPC_chapMd5AuthenStatus = false;
+  PPTPC_chapChallengeSize = 0;
+  PPTPC_chapAuthenStatus = false;
+  PPTPC_chapAuthenResponse = false;
+  PPTPC_authenChapMode = 0;
 
   localIP.addr = 0x00000000;
   remoteIP.addr = 0x0000000;
@@ -185,6 +194,7 @@ void PPTPC_init(const char *server, int port, const char *user, const char *pass
     return;
   }
   PPTPC_serverIP = ip;
+
 }
 
 void PPTPC_reinit() {
@@ -194,9 +204,11 @@ void PPTPC_reinit() {
   papLoginState = false;
   cbcpComplete = false;
   mplsIdentifier = -1;
-  PPTPC_chapMd5ChallengeSize = 0;
-  PPTPC_chapMd5AuthenStatus = false;
-
+  PPTPC_chapChallengeSize = 0;
+  PPTPC_chapAuthenStatus = false;
+  PPTPC_chapAuthenResponse = false;
+  PPTPC_authenChapMode = 0;
+  
   localIP.addr = 0x00000000;
   remoteIP.addr = 0x0000000;
   netmask.addr = 0xffffffff;
@@ -390,16 +402,24 @@ bool PPTPC_pppLcpConfig() {
   //Serial.print("_gre1.write: ");
   //Serial.println(ret);
 
+  uint32_t tm = millis();
   while (lcpComplete != true) {
     delay(100);
     //Serial.print(". ");
     db_printf(DB_DEBUG, ". ");
+    if (millis() - tm > waitTimeoutMs) {
+      db_printf(DB_DEBUG, "PPTPC_pppLcpConfig() lcpComplete Wait timeout!!!\n");
+      break;
+    }
   }
 
-  //Serial.println("PPTP_Client::_pppLcpConfig() Complete");
-  db_printf(DB_DEBUG, "PPTPC_pppLcpConfig() Success\n");
-  return true;
-  
+  if (lcpComplete == true) {
+    db_printf(DB_DEBUG, "PPTPC_pppLcpConfig() Success\n");
+    return true;
+  }
+
+  db_printf(DB_DEBUG, "PPTPC_pppLcpConfig() Fail\n");
+  return false;  
 }
 
 int PPTPC_pppPapOptions(uint8_t *buff, char *username, char *password) {
@@ -428,7 +448,7 @@ bool PPTPC_pppChapMd5() {
   
   //Serial.println("PPTPC_pppChapMd5: Wait for chap challenge");
   db_printf(DB_DEBUG, "PPTPC_pppChapMd5() Wait for chap challenge\n");
-  while (PPTPC_chapMd5ChallengeSize <= 0) {
+  while (PPTPC_chapChallengeSize <= 0) {
     //Serial.print("+ ");
     db_printf(DB_DEBUG, "+ ");
     delay(100);
@@ -436,9 +456,9 @@ bool PPTPC_pppChapMd5() {
   //Serial.println("PPTPC_pppChapMd5: Calc MD5");
   db_printf(DB_DEBUG, "PPTPC_pppChapMd5() Calc MD5\n");
   MD5Init(&PPTPC_md5Context);
-  MD5Update(&PPTPC_md5Context, (uint8_t*)&PPTPC_chapMd5Identifier, 1);
+  MD5Update(&PPTPC_md5Context, (uint8_t*)&PPTPC_chapIdentifier, 1);
   MD5Update(&PPTPC_md5Context, (uint8_t*)PPTPC_password, strlen(PPTPC_password));
-  MD5Update(&PPTPC_md5Context, (uint8_t*)PPTPC_chapMd5Challenge, PPTPC_chapMd5ChallengeSize);
+  MD5Update(&PPTPC_md5Context, (uint8_t*)PPTPC_chapChallenge, PPTPC_chapChallengeSize);
   MD5Final(md5Result, &PPTPC_md5Context);
   //Serial.println("PPTPC_pppChapMd5: response");
   //PPTPC_printHex2(md5Result, 16);
@@ -455,7 +475,7 @@ bool PPTPC_pppChapMd5() {
 
   buff[4] = 0x02;
 
-  buff[5] = PPTPC_chapMd5Identifier;
+  buff[5] = PPTPC_chapIdentifier;
 
   buff[6] = chapSize >> 8;
   buff[7] = chapSize & 0xff;
@@ -474,19 +494,91 @@ bool PPTPC_pppChapMd5() {
   //Serial.println(ret);
   db_printf(DB_DEBUG, "PPTPC_pppChapMd5() GRE_write length = %d\n", ret);
 
-  while (PPTPC_chapMd5AuthenStatus != true) {
+  uint32_t tm = millis();
+  while (PPTPC_chapAuthenResponse != true) {
     delay(100);
     //Serial.print("+ ");
     db_printf(DB_DEBUG, "+ ");
+    if (millis() - tm > 10000) {
+      db_printf(DB_DEBUG, "Timout!!! ");
+      break;
+    }
   }
 
-  if (PPTPC_chapMd5AuthenStatus == true) {
+  if (PPTPC_chapAuthenStatus == true) {
     //Serial.println("PPTP_Client::_pppChap() Login Complete");  
     db_printf(DB_DEBUG, "PPTPC_pppChapMd5() Login Complete\n");
     return true;
   }
 
-  db_printf(DB_DEBUG, "PPTPC_pppChapMd5() Return Fail\n");
+  db_printf(DB_DEBUG, "PPTPC_pppChapMd5() Login Fail\n");
+  return false;
+}
+
+bool PPTPC_pppChapMsChap() {
+  uint8_t chapResponse[100];
+  int pppSize;
+  int chapSize;
+  uint8_t buff[100];
+  struct PtpPacket *ptp;
+
+  db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() Begin\n");
+  memset(buff, 0, 200);
+  
+  db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() Wait for chap challenge\n");
+  while (PPTPC_chapChallengeSize <= 0) {
+    db_printf(DB_DEBUG, "+ ");
+    delay(100);
+  }
+  
+  db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() Calc MSCHAP2\n");
+  MSCHAP_GetResponse(&mschap_ctx, PPTPC_username, PPTPC_password, chapResponse);
+  db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() CHAP response...\n");
+  PPTPC_printHexDB(DB_DEBUG, chapResponse, 49);
+  chapSize = 1+1+2+1+49+strlen(PPTPC_username);
+  pppSize = 4 + chapSize;
+  buff[0] = 0xff;
+  
+  buff[1] = 0x03;
+  
+  buff[2] = 0xc2;
+  buff[3] = 0x23;
+
+  buff[4] = 0x02;
+
+  buff[5] = PPTPC_chapIdentifier;
+
+  buff[6] = chapSize >> 8;
+  buff[7] = chapSize & 0xff;
+
+  buff[8] = 49;
+
+  int i;
+  for (i=0; i< 49; i++) {
+    buff[i+9] = chapResponse[i];
+  }
+  
+  memcpy(&buff[i +9], PPTPC_username, strlen(PPTPC_username));
+
+  int ret = GRE_write(buff, pppSize);
+  db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() GRE_write length = %d\n", ret);
+
+  uint32_t tm = millis();
+  while (PPTPC_chapAuthenResponse != true) {
+    delay(100);
+    db_printf(DB_DEBUG, "+ ");
+    if (millis() - tm > 10000) {
+      db_printf(DB_DEBUG, "Timout!!! ");
+      break;
+    }
+  }
+
+  if (PPTPC_chapAuthenStatus == true) {
+    db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() Login Complete\n");
+    return true;
+  }
+
+  db_printf(DB_DEBUG, "PPTPC_pppChapMsChap() Login Fail\n");
   return false;
 }
 
@@ -855,10 +947,23 @@ bool PPTPC_connect() {
       db_printf(DB_INFO, "PPTPC_connect() PPTPC_pppPap() Fail\n");
       return false;
     }
-  } else if (PPTPC_authenProtocol == 0xc223) {  // CHAP-MD5 Authen
-    if (PPTPC_pppChapMd5() != true) {
-      //Serial.println("PPTP_Client::connect() PPTPC_pppChapMd5 Failed");
-      db_printf(DB_INFO, "PPTPC_connect() PPTPC_pppChapMd5() Fail\n");
+  } else if (PPTPC_authenProtocol == 0xc223) {  // CHAP Authen
+    
+    // CHAP-MD5 Authen
+    if (PPTPC_authenChapMode == CHAP_MD5) {
+      if (PPTPC_pppChapMd5() != true) {
+        //Serial.println("PPTP_Client::connect() PPTPC_pppChapMd5 Failed");
+        db_printf(DB_INFO, "PPTPC_connect() PPTPC_pppChapMd5() Fail\n");
+        return false;
+      }
+    } else if ((PPTPC_authenChapMode == CHAP_MSCHAP2) || (PPTPC_authenChapMode == CHAP_MSCHAP1)) {   // MS-CHAP Authen
+      if (PPTPC_pppChapMsChap() != true) {
+        //Serial.println("PPTP_Client::connect() PPTPC_pppChapMd5 Failed");
+        db_printf(DB_INFO, "PPTPC_connect() PPTPC_pppChapMsChap() Fail\n");
+        return false;
+      }
+    } else {
+      db_printf(DB_INFO, "PPTPC_connect() PPTPC_pppChap() Unknown, Fail\n");
       return false;
     }
   } else {
@@ -958,17 +1063,13 @@ bool PPTPC_checkLcpRequest(uint8_t *lcpOptions, int length) {
     len = *(p+1);
     if (type == 0x01) {   // Type: Maximum MRU
       if (len != 4) {
-        //Serial.println("PPTPC_checkLcpRequest: error MRU len != 4");
         db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() error MRU len != 4\n");
         return false;
       }
       
       ds = *(p + 3) | (*(p + 2) << 8);
-      //Serial.print("PPTPC_checkLcpRequest: Max MRU=");
-      //Serial.println(ds);
       db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Max MRU=%d\n", ds);
       if (ds > 1450) {
-        //Serial.println("PPTPC_checkLcpRequest: error Max MRU > 1450");
         db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() error Max MRU > 1450\n");
         return false;
       }
@@ -976,20 +1077,24 @@ bool PPTPC_checkLcpRequest(uint8_t *lcpOptions, int length) {
     } else if (type == 0x03) {  // type: Authen protocol
       ds = *(p + 3) | (*(p + 2) << 8);
       if (ds == 0xc023) {         // PAP
-        //Serial.println("PPTPC_checkLcpRequest: Authen mode = PAP");
         db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Authen mode = PAP\n");
         
       } else if (ds == 0xc223) {  // CHAP  
-        if (p[4] == 0x05) {      // CHAP-MD5
-          //Serial.println("PPTPC_checkLcpRequest: Authen mode = CHAP-MD5");
+        PPTPC_authenChapMode = p[4];
+        if (p[4] == CHAP_MD5) {      // CHAP-MD5
           db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Authen mode = CHAP-MD5\n");
+        
+        } else if (p[4] == CHAP_MSCHAP1) {  //MS-CHAP-1
+          db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Authen mode = MS-CHAP-1\n");
+
+        } else if (p[4] == CHAP_MSCHAP2) {  //MS-CHAP-2 
+          db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Authen mode = MS-CHAP-2\n");
+
         } else {
-          //Serial.println("PPTPC_checkLcpRequest: Authen mode = CHAP (Fail)");
           db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Authen mode = CHAP (Fail)\n");
           return false;
         }
       } else {
-        //Serial.println("PPTPC_checkLcpRequest: Authen mode = Unknown");
         db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Authen mode = Unknown 0x%04X\n", ds);
       }
 
@@ -997,21 +1102,14 @@ bool PPTPC_checkLcpRequest(uint8_t *lcpOptions, int length) {
       
     } else if (type == 0x05) {  //type: Magic number
       if (len != 6) {
-        //Serial.println("PPTPC_checkLcpRequest: Error Magic Number len != 6");
         db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Error Magic Number len != 6\n");
         return false;
       }
 
-      //dl = p[5] | ((uint32_t)p[4] << 8) | ((uint32_t)p[3] << 16) | ((uint32_t)p[2] << 24);
       dl = p[5] | (p[4] << 8) | (p[3] << 16) | (p[2] << 24);
-      //Serial.print("PPTPC_checkLcpRequest: Magic Number = 0x");
-      //Serial.println(dl, HEX);
-      //printf("PPTPC_checkLcpRequest: Magic Number = 0x%X\n", dl);
       db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Magic Number = 0x%X\n", dl);
       
     } else {
-      //Serial.print("PPTPC_checkLcpRequest: Error Unknown option type =");
-      //Serial.println(type);
       db_printf(DB_DEBUG, "PPTPC_checkLcpRequest() Error Unknown option type =%d\n", type);
       //return false;
     }
@@ -1111,15 +1209,30 @@ static int PPTPC_receiveCallback(uint8_t *data, int length) {
 
     // Challenge
     if (lcp->code == 0x01) {
-      memcpy(PPTPC_chapMd5Challenge, data + 5, *(data +4));
-      PPTPC_chapMd5Identifier = *(data + 1);
-      PPTPC_chapMd5ChallengeSize = *(data +4);
+
+      memcpy(PPTPC_chapChallenge, data + 5, *(data +4));
+      PPTPC_chapIdentifier = *(data + 1);
+      PPTPC_chapChallengeSize = *(data +4);
+
+      if (PPTPC_authenChapMode == CHAP_MSCHAP2) {
+        MSCHAP_Init(&mschap_ctx, 2, PPTPC_chapChallenge);
+      } else if (PPTPC_authenChapMode == CHAP_MSCHAP1) {
+        MSCHAP_Init(&mschap_ctx, 1, PPTPC_chapChallenge);
+      }
       return 0; // tell parent to not write gre answer
     }
 
     // Chap Success
     if (lcp->code == 0x03) {
-      PPTPC_chapMd5AuthenStatus = true;
+      PPTPC_chapAuthenStatus = true;
+      PPTPC_chapAuthenResponse = true;
+      return 0;
+    }
+
+    // Chap Failure (May be User/Password incorrect)
+    if (lcp->code == 0x04) {
+      PPTPC_chapAuthenStatus = false;
+      PPTPC_chapAuthenResponse = true;
       return 0;
     }
     
