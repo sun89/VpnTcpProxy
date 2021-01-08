@@ -12,67 +12,6 @@
 #include "des.h"
 #include "DebugMsg.h"
 
-#if 0
-#ifndef HEXDUMP_COLS
-#define HEXDUMP_COLS 16
-#endif
- 
-void MSCHAP_printHex(void *mem, unsigned int len) {
-        unsigned int i, j;
-        printf("PrintHex\n");
-        
-        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
-        {
-                /* print offset */
-                if(i % HEXDUMP_COLS == 0)
-                {
-                        printf("0x%06x: ", i);
-                        //fflush(stdout);
-                }
- 
-                /* print hex data */
-                if(i < len)
-                {
-                        printf("%02x ", 0xFF & ((char*)mem)[i]);
-                        fflush(stdout);
-                }
-                else /* end of block, just aligning for ASCII dump */
-                {
-                        printf("   ");
-                        //fflush(stdout);
-                }
-                
-                /* print ASCII dump */
-                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
-                {
-                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
-                        {
-                                if(j >= len) /* end of block, not really printing */
-                                {
-                                        putchar(' ');
-                                }
-                                else if(isprint(((char*)mem)[j])) /* printable char */
-                                {
-                                        putchar(0xFF & ((char*)mem)[j]);        
-                                }
-                                else /* other char */
-                                {
-                                        putchar('.');
-                                }
-                                //fflush(stdout);
-                        }
-                        putchar('\n');
-                        //fflush(stdout);
-                }
-        }
-        //fflush(stdout);
-}
-#else
-#define MSCHAP_printHex(a, b) 
-#endif
-
-//uint8_t PeerChallenge[16];
-
 int ChallengeHash( uint8_t PeerChallenge[16], uint8_t AuthenticatorChallenge[16], char *UserName, uint8_t Challenge[8]);
 int NtPasswordHash(char *PasswordASCII,uint8_t PasswordHash[16] );
 int ChallengeResponse(uint8_t Challenge[8], uint8_t PasswordHash[16], uint8_t Response[24] );
@@ -100,7 +39,6 @@ int GenerateNTResponse(uint8_t AuthenticatorChallenge[16], uint8_t PeerChallenge
       return 1;
 }
 
-#if 1
 int ChallengeHash( uint8_t PeerChallenge[16], uint8_t AuthenticatorChallenge[16], char *UserName, uint8_t Challenge[8]) {
   
   uint8_t Digest[20];
@@ -441,7 +379,6 @@ bool CheckAuthenticatorResponse(char *Password, uint8_t NtResponse[24], uint8_t 
   return ResponseOK;
 }
 
-#endif
 /* run this program using the console pauser or add your own getch, system("pause") or input loop */
 
 void MSCHAP_Test() {

@@ -11,6 +11,8 @@ extern "C"
   #include <lwip/inet.h>
 }
 
+#define TcpProxyServer_printHex(level, mem, len)  db_printHex(level, mem, len)
+
 struct raw_pcb *tcpControlBlock;
 ip_addr_t destServerIP;
 ip_addr_t clientAddress;
@@ -57,62 +59,7 @@ bool TcpProxyServer_begin(const char *destServer, unsigned short _reservedPort) 
   
 }
 
-#ifndef HEXDUMP_COLS
-#define HEXDUMP_COLS 16
-#endif
-void TcpProxyServer_printHex(uint8_t level, void *mem, unsigned int len)
-{
-        unsigned int i, j;
 
-        if (level > db_getLevel())
-          return;
-        
-        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
-        {
-                /* print offset */
-                if(i % HEXDUMP_COLS == 0)
-                {
-                        printf("0x%06x: ", i);
-                        fflush(stdout);
-                }
- 
-                /* print hex data */
-                if(i < len)
-                {
-                        printf("%02x ", 0xFF & ((char*)mem)[i]);
-                        fflush(stdout);
-                }
-                else /* end of block, just aligning for ASCII dump */
-                {
-                        printf("   ");
-                        fflush(stdout);
-                }
-                
-                /* print ASCII dump */
-                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
-                {
-                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
-                        {
-                                if(j >= len) /* end of block, not really printing */
-                                {
-                                        putchar(' ');
-                                }
-                                else if(isprint(((char*)mem)[j])) /* printable char */
-                                {
-                                        putchar(0xFF & ((char*)mem)[j]);        
-                                }
-                                else /* other char */
-                                {
-                                        putchar('.');
-                                }
-                                fflush(stdout);
-                        }
-                        putchar('\n');
-                        fflush(stdout);
-                }
-        }
-        fflush(stdout);
-}
  
 bool TCP_write(ip_addr_t *ip, pbuf *packetBuffer) {
   db_printf(DB_DEBUG, "TCP_write() Begin\n");
@@ -156,12 +103,10 @@ void fillChecksum(uint8_t * tcpPacket, ip_addr_t *srcIP, ip_addr_t *destIP, int 
   psum = (uint8_t*)&pseudoHeader;
   for (int i  =0; i < 12; i+=2) {
     uint16_t chunk = (psum[0] << 8) | psum[1];
-    //printf("Word %d = 0x%04X\n", i, chunk);
     db_printf(DB_DEBUG, "fillChecksum() HDR Word = 0x%04X\n", chunk);
     chksum += chunk;
     psum += 2;
   }
-  //printf("Pseudo Header Sum = 0x%08X\n", chksum);
   db_printf(DB_DEBUG, "fillChecksum() Pseudo Header Sum = 0x%08X\n", chksum);
   
   psum = (uint8_t *)tcpPacket;
@@ -191,7 +136,6 @@ void fillChecksum(uint8_t * tcpPacket, ip_addr_t *srcIP, ip_addr_t *destIP, int 
   }
   chksum = ~chksum;
   finalsum = (uint16_t)chksum;
-  //printf("final Sum = 0x%04X\n", finalsum);
   db_printf(DB_DEBUG, "fillChecksum() Final Sum = 0x%04X\n", finalsum);
   p[16] = finalsum >> 8;
   p[17] = finalsum & 0xff;
@@ -273,7 +217,6 @@ static uint8_t tcpReceivedStatic(void *tcp, raw_pcb *pcb, pbuf *packetBuffer, co
       
       clientAddress.addr = current_iphdr_src.addr;
       vpnClientIP.addr = current_iphdr_dest.addr;
-      //fillChecksum((uint8_t *)packetBuffer->payload, &current_iphdr_dest, &destServerIP, packetBuffer->len);
       fillChecksum((uint8_t *)packetBuffer->payload, &myIP, &destServerIP, packetBuffer->len);
       TcpProxyServer_printHex(DB_DEBUG, (uint8_t *)packetBuffer->payload, packetBuffer->len);
       
@@ -283,7 +226,6 @@ static uint8_t tcpReceivedStatic(void *tcp, raw_pcb *pcb, pbuf *packetBuffer, co
     
     } else {    // Response From Destination Server -> Forward back to client
     
-      //fillChecksum((uint8_t *)packetBuffer->payload, &current_iphdr_dest, &clientAddress, packetBuffer->len);
       fillChecksum((uint8_t *)packetBuffer->payload, &vpnClientIP, &clientAddress, packetBuffer->len);
       TcpProxyServer_printHex(DB_DEBUG, (uint8_t *)packetBuffer->payload, packetBuffer->len);
       TCP_write(&clientAddress, packetBuffer);

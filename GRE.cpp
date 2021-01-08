@@ -70,15 +70,12 @@ int GRE_write(uint8_t *data, int length) {
   if (actField) greSize += 4; // Need for act number field
     
   packetSize = greSize + length;
-  //Serial.print("GRE::write() Length: ");
-  //Serial.println(packetSize);
   db_printf(DB_DEBUG, "GRE_write() Length = %d\n", packetSize);
 
   // Allocate packet buffer structure. Buffer memory is allocated as one 
   // large chunk. This includes protocol headers as well.
   struct pbuf * packetBuffer = pbuf_alloc( PBUF_IP, packetSize, PBUF_RAM);
   if(packetBuffer == nullptr) {
-    //Serial.println("pbuf alloc fail");
     db_printf(DB_DEBUG, "GRE_write() pbuf alloc fail\n");
     return -1;
   }
@@ -88,7 +85,6 @@ int GRE_write(uint8_t *data, int length) {
     (packetBuffer->next != nullptr)) {
     
     // Free packet buffer memory and exit
-    //Serial.println("pbuf alloc not valid");
     db_printf(DB_DEBUG, "GRE_write() pbuf alloc not valid\n");
     pbuf_free(packetBuffer);
     return  -2;
@@ -112,7 +108,6 @@ int GRE_write(uint8_t *data, int length) {
 
   pPayload = (uint8_t*)(pAckNumber + 1);
   memcpy(pPayload, data, length);  
-  //memcpy(pPayload, "0123456789", 10);
   
   // Finally, send the packet and register timestamp
   raw_sendto(_greControlBlock, packetBuffer, &_serverIP);
@@ -145,7 +140,6 @@ int GRE_writeAck() {
   // large chunk. This includes protocol headers as well.
   struct pbuf * packetBuffer = pbuf_alloc( PBUF_IP, 12, PBUF_RAM);
   if(packetBuffer == nullptr) {
-    //Serial.println("pbuf alloc fail");
     db_printf(DB_DEBUG, "GRE_writeAck() pbuf alloc fail\n");
     return -1;
   }
@@ -155,7 +149,6 @@ int GRE_writeAck() {
     (packetBuffer->next != nullptr)) {
     
     // Free packet buffer memory and exit
-    //Serial.println("pbuf alloc not valid");
     db_printf(DB_DEBUG, "GRE_writeAck() pbuf alloc not valid\n");
     pbuf_free(packetBuffer);
     return  -2;
@@ -203,14 +196,12 @@ bool GRE_init(const char *servername, int port) {
   IPAddress ip;
   if(WiFi.hostByName(_servername, ip) == false) {
     // Unable to resolve hostname
-    //Serial.println("Resolve Server name fail");
     db_printf(DB_DEBUG, "GRE_init() Resolve Server name fail\n");
     return false;
   }
   _serverIP = ip;
 
   if (_greSetup() != true) {
-    //Serial.println("GRE::connect() _greSetup Failed");
     db_printf(DB_DEBUG, "GRE_init() _greSetup Failed\n");
     return false;
   }
@@ -228,7 +219,6 @@ bool _greSetup() {
   // Create new GRE detection data
   _greControlBlock = raw_new(IP_PROTO_GRE);
   if (_greControlBlock == nullptr) {
-    //Serial.println("GRE::_greSetup() raw_new() fail");
     db_printf(DB_DEBUG, "_greSetup() raw_new() fail\n");
     return false;
   }
@@ -248,7 +238,6 @@ bool _greSetup() {
 //////////////////////////////////////////////////////////////////////////////
 // LWIP callback run when a gre response is received (static wrapper)
 static uint8_t _greReceivedStatic(void *gre, raw_pcb *pcb, pbuf *packetBuffer, const ip_addr_t * addr) {
-  //Serial.print("GRE In\n");
   db_printf(DB_DEBUG, "_greReceivedStatic() Begin\n");
   
   // Check parameters
@@ -260,13 +249,10 @@ static uint8_t _greReceivedStatic(void *gre, raw_pcb *pcb, pbuf *packetBuffer, c
   {
     // 0 is returned to raw_recv. In this way the packet will be matched 
     // against further PCBs and/or forwarded to other protocol layers.
-    //Serial.print("GRE In: nullptr\n");
     db_printf(DB_DEBUG, "_greReceivedStatic() nullptr\n");
     return 0;
   }
 
-  //return ((Pinger *)pinger)->PingReceived(packetBuffer, addr);
-  //Serial.print("GRE In ret\n");
   db_printf(DB_DEBUG, "_greReceivedStatic() End\n");
   return GreReceived(packetBuffer, addr);
 }
@@ -274,7 +260,6 @@ static uint8_t _greReceivedStatic(void *gre, raw_pcb *pcb, pbuf *packetBuffer, c
 //////////////////////////////////////////////////////////////////////////////
 // LWIP callback run when a gre response is received
 uint8_t GreReceived(pbuf * packetBuffer, const ip_addr_t * addr) {
-  //Serial.print("GRE In ***\n");
   db_printf(DB_DEBUG, "GreReceived() Begin\n");
   
   // Check parameters
@@ -282,7 +267,6 @@ uint8_t GreReceived(pbuf * packetBuffer, const ip_addr_t * addr) {
   {
     // Not free the packet, and return zero. The packet will be matched against
     // further PCBs and/or forwarded to other protocol layers.
-    //Serial.print("GRE::GreReceived error 1\n");
     db_printf(DB_DEBUG, "GreReceived() error 1\n");
     return 0;
   }
@@ -293,7 +277,6 @@ uint8_t GreReceived(pbuf * packetBuffer, const ip_addr_t * addr) {
   {
     // Not free the packet, and return zero. The packet will be matched against
     // further PCBs and/or forwarded to other protocol layers.
-    //Serial.print("GRE::GreReceived error 2\n");
     db_printf(DB_DEBUG, "GreReceived() error 2\n");
     return 0;
   }
@@ -304,7 +287,6 @@ uint8_t GreReceived(pbuf * packetBuffer, const ip_addr_t * addr) {
   {  
     // Not free the packet, and return zero. The packet will be matched against
     // further PCBs and/or forwarded to other protocol layers.
-    //Serial.print("GRE::GreReceived error 3\n");
     db_printf(DB_DEBUG, "GreReceived() error 3\n");
     return 0;
   }
@@ -317,59 +299,41 @@ uint8_t GreReceived(pbuf * packetBuffer, const ip_addr_t * addr) {
   
     // Not free the packet, and return zero. The packet will be matched against
     // further PCBs and/or forwarded to other protocol layers.
-    //Serial.print("GRE::GreReceived error 4\n");
     db_printf(DB_DEBUG, "GreReceived() error 4\n");
     return 0;
   }
 
-  //Serial.print("GRE::GreReceived Process Header\n");
   db_printf(DB_DEBUG, "GreReceived() Process Header\n");
   int greHeaderSize = sizeof(GrePacket);
   bool seqField = false;
   bool ackField = false;
   uint16_t flag = ntohs(greHeader->flagsAndVersion);
-  //uint8_t *data = (uint32_t *)packetBuffer->payload
   int payloadSize = 0;
 
   payloadSize = ntohs(greHeader->payloadLength);
   
   pbuf_header(packetBuffer, -greHeaderSize);
-  //Serial.print("GRE::GreReceived Process Header 1\n");
-  //Serial.print("GRE Flag: ");
-  //Serial.println(flag, HEX);
   
   // flag seq number present
   if ( flag & 0x1000) {
     char * pack = (char *)packetBuffer->payload;
     _ackNumber = (pack[0] << 24) | (pack[1] << 16) | (pack[2] << 8) | pack[3];
-    //if(pack == nullptr) {
-    //  Serial.print("pack is null");
-    //  return 0;
-    //}
-    //Serial.print("GRE Seq: 0x");
-    //Serial.println(_ackNumber, HEX);
-    //_ackNumber = ntohl(*((uint32_t*)packetBuffer->payload));
     pbuf_header(packetBuffer, -4);
   }
 
-  //Serial.print("GRE::GreReceived Process Header 2\n");
   // flag ack number present
   if ( flag & 0x0080) {
     pbuf_header(packetBuffer, -4);
   }
 
-  //Serial.print("GRE::GreReceived Process Header 3\n");
   _readAvailable = false;
   memcpy(_readBuffer, (uint8_t*)packetBuffer->payload, payloadSize);
   _readBufferLength = payloadSize;
   _readAvailable = true;
 
   uint8_t *cbData = nullptr;
-  //recvCallback = nullptr;
   if (GRE_recvCallback != nullptr) {
-    //cbData = (uint8_t*)malloc(payloadSize);
-    //if (cbData != nullptr) {
-      //memcpy(cbData, (uint8_t*)packetBuffer->payload, payloadSize);
+
       int cbRet = (*GRE_recvCallback)((uint8_t*)packetBuffer->payload, payloadSize);
       if (cbRet == 1) {
         GRE_write((uint8_t*)packetBuffer->payload, payloadSize);
@@ -378,13 +342,11 @@ uint8_t GreReceived(pbuf * packetBuffer, const ip_addr_t * addr) {
       if (cbRet == 2) {
         GRE_writeAck();
       }
-    //}
+
   } else {
-    //Serial.println("GRE_recvCallback is nullptr");
     db_printf(DB_DEBUG, "GreReceived() GRE_recvCallback is nullptr\n");
   }
 
-  //Serial.print("GRE::GreReceived OK\n");
   // Eat the packet by calling pbuf_free() and returning non-zero.
   // The packet will not be passed to other raw PCBs or other protocol layers.
   pbuf_free(packetBuffer);
